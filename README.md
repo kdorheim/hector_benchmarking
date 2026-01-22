@@ -1,2 +1,3 @@
-# hector_benchmarking
-Materials related to benchmarking hector
+# hector benchmarking
+
+Materials related to benchmarking hector against RCMIP, AR6, and observations.
