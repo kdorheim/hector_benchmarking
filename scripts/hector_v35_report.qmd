@@ -1,0 +1,73 @@
+---
+title: "Hector V 3.5"
+author: "Kalyn Dorheim"
+date: today
+toc: true
+format:
+  html:
+    html-math-method: katex
+    code-tools: true
+    self-contained: true
+execute:
+  warning: false
+  message: false
+---
+
+# Objective
+
+The main purpose of this report is to compare the hector v 3.5.0 release version with benchmarks & other models.  
+
+
+```{r, echo = FALSE}
+library(dplyr)
+library(ggplot2)
+library(hector)
+library(tidyr)
+theme_set(theme_bw())
+
+# TODO this will need to be updated to reflect the project location
+BASE_DIR <- "/Users/dorh012/Documents/Hector-WD/hector_benchmarking"
+```
+
+
+
+
+# MAGICC 
+
+```{r, echo = FALSE}
+# Load the data 
+file.path(BASE_DIR, "data", "hector_magicc.csv") %>% 
+  read.csv ->
+  magicc_data
+
+magicc_data %>% 
+  filter(variable == GLOBAL_TAS()) %>% 
+  filter(year %in% 1850:2300) -> 
+  ssp_temp_data
+```
+
+```{r, fig.align='center'}
+ssp_temp_data %>% 
+  ggplot(aes(year, value, color = model)) + 
+  geom_line() + 
+  facet_wrap("scenario", scales = "free") + 
+  labs(y = "temp anomoly relative 1850-1900 (deg C)", 
+       title = GLOBAL_TAS(), 
+       x = NULL)
+```
+
+Quantify the average difference in temperature between hector and magicc.
+
+```{r}
+ssp_temp_data %>% 
+  select(-units) %>% 
+  pivot_wider(names_from = model, values_from = value) %>% 
+  mutate(scenario = if_else(year < 2015, "historical", scenario)) %>% 
+  filter(scenario != "historical") %>% 
+  na.omit %>% 
+  mutate(diff = `hector 3.5.0` - `MAGICC7.1.0`) %>% 
+  summarise(value = mean(diff), .by = scenario) %>% 
+  knitr::kable(digits = 3)
+```
+
+
