@@ -11,11 +11,12 @@ format:
 execute:
   warning: false
   message: false
+  echo: false
 ---
 
 # Objective
 
-The main purpose of this report is to compare the hector v 3.5.0 release version with benchmarks & other models.  
+Comparison of hector V 3.5.0 with available magicc & fair results (RCMIP I).
 
 
 ```{r, echo = FALSE}
@@ -29,25 +30,33 @@ theme_set(theme_bw())
 BASE_DIR <- "/Users/dorh012/Documents/Hector-WD/hector_benchmarking"
 ```
 
+```{r}
+```
 
 
+```{r}
+```
 
-# MAGICC 
-
-```{r, echo = FALSE}
-# Load the data 
+```{r}
 file.path(BASE_DIR, "data", "hector_magicc.csv") %>% 
   read.csv ->
   magicc_data
 
-magicc_data %>% 
-  filter(variable == GLOBAL_TAS()) %>% 
-  filter(year %in% 1850:2300) -> 
-  ssp_temp_data
+file.path(BASE_DIR, "data", "hector_fair.csv") %>% 
+  read.csv ->
+  fair_data
+
+magicc_data %>%  
+  rbind(fair_data) %>%  
+  filter(year %in% 1900:2100) %>% 
+  filter(variable == GLOBAL_TAS()) -> 
+  rslts
 ```
 
+# Comparison
+
 ```{r, fig.align='center'}
-ssp_temp_data %>% 
+rslts %>% 
   ggplot(aes(year, value, color = model)) + 
   geom_line() + 
   facet_wrap("scenario", scales = "free") + 
@@ -56,17 +65,39 @@ ssp_temp_data %>%
        x = NULL)
 ```
 
-Quantify the average difference in temperature between hector and magicc.
 
-```{r}
-ssp_temp_data %>% 
+```{r, echo = FALSE}
+rslts %>% 
+  filter(model == "hector 3.5.0") %>% 
+  select(year, variable, hector = value, scenario) %>% 
+  distinct -> 
+  hector_rslts
+
+
+rslts %>% 
+  filter(model != "hector 3.5.0") %>% 
   select(-units) %>% 
-  pivot_wider(names_from = model, values_from = value) %>% 
+  left_join(hector_rslts, by = join_by(scenario, variable, year)) %>% 
   mutate(scenario = if_else(year < 2015, "historical", scenario)) %>% 
-  filter(scenario != "historical") %>% 
+  #filter(scenario != "historical") %>% 
   na.omit %>% 
-  mutate(diff = `hector 3.5.0` - `MAGICC7.1.0`) %>% 
-  summarise(value = mean(diff), .by = scenario) %>% 
+  mutate(diff = hector - value) -> 
+  diff_table
+```
+
+The mean difference between hector and model temp.   
+
+```{r, echo = FALSE}  
+  diff_table %>% 
+  summarise(value = mean(diff), .by = c(scenario, model)) %>% 
+  knitr::kable(digits = 3)
+```
+
+Difference between 2100 hector and model temp.
+
+```{r, echo = FALSE}  
+diff_table %>% 
+  filter(year == 2100) %>% 
   knitr::kable(digits = 3)
 ```
 

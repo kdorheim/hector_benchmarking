@@ -90,7 +90,7 @@ url("https://zenodo.org/records/17459384/files/output-V3.5.0.csv") %>%
   mutate(model = paste0("hector ", version)) %>% 
   select(all_of(expected_cols)) -> 
   hector_data
-  
+
 
 # Normalize the non idealized temperature results. 
 hector_data %>% 
@@ -152,7 +152,69 @@ hector_data %>%
   out
 
 write.csv(x = out, file = file.path(OUT_DIR, "hector_magicc.csv"), row.names = FALSE)
-  
+
+
+# 2. fair ----------------------------------------------------------------------
+
+scn_patterns <- "ssp119|ssp245|ssp585"
+
+# Identify and read fair results for the the scenarios of interest.  
+data.frame(files = list.files(file.path(RAWDATA_DIR, "fair"), pattern = "csv", full.names = TRUE)) %>% 
+  filter(grepl(x = files, pattern = scn_patterns)) %>% 
+  # search the file names for the different conditions (emission driven, default results, the lattest version, ect.)
+  filter(grepl(x = files, pattern = "esm")) %>% 
+  filter(grepl(x = files, pattern = "default")) %>%  
+  filter(grepl(x = files, pattern = "v1-0-1")) %>%  
+  filter(!grepl(x = files, pattern = "allGHG")) %>% 
+  pull(files) %>% 
+  lapply(read.csv) %>% 
+  bind_rows %>%  
+  # Select the variables of interest. 
+  filter(Region == "World") %>% 
+  filter(Variable %in% RCMIP1_var_mapping$rcmip_variable) %>% 
+  filter(Scenario %in% RCMIP_scn_mapping$rcmip_scenario) %>% 
+  # Change from wide to long data fromat. 
+  pivot_longer(cols = starts_with("X"), names_to = "year", values_to = "value")  %>%  
+  mutate(year = as.integer(substr(year, 2, 5)),
+         Climatemodel = gsub(x = Climatemodel, pattern = "-DEFAULT", replacement = "")) -> 
+  fair_data
+
+# Update the names in preparation of mapping to the hector variable names. 
+colnames(fair_data) <- tolower(paste("rcmip_", colnames(fair_data), sep = ""))
+
+
+# Update to hector variable & scenario names. 
+fair_data %>%  
+  left_join(RCMIP1_var_mapping, by = "rcmip_variable") %>% 
+  left_join(RCMIP_scn_mapping, by = "rcmip_scenario") %>% 
+  # select the columns of interest
+  select(scenario = hector_scenario, 
+         variable = hector_variable,
+         model = rcmip_climatemodel, 
+         year = rcmip_year, 
+         value = rcmip_value) ->
+  fair_data
+
+# Normalize the non idealized temperature results. 
+fair_data %>% 
+  filter(variable %in% c(GLOBAL_TAS()) & grepl(x = scenario, pattern = "ssp")) %>% 
+  noramalize_data -> 
+  normalized_temp_data
+
+# Add the normalized temp back to the data set. 
+fair_data %>% 
+  filter(!(variable %in% c(GLOBAL_TAS()) & grepl(x = scenario, pattern = "ssp"))) %>% 
+  bind_rows(normalized_temp_data) -> 
+  fair_data  
+
+# Save a copy of the data for the hector / magicc comparison.
+hector_data %>%  
+  filter(scenario %in% fair_data$scenario & variable %in% fair_data$variable) %>% 
+  bind_rows(fair_data) %>% 
+  filter(grepl(x = scenario, pattern = "ssp")) -> 
+  out
+
+write.csv(x = out, file = file.path(OUT_DIR, "hector_fair.csv"), row.names = FALSE)
 
 
 
